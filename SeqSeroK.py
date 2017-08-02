@@ -350,7 +350,8 @@ def main():
             if float(H_dict[s]) > highest_Score:
                 highest_fljB = s.split('_')[1]
                 highest_Score = float(H_dict[s])
-    #print(input_file+'\t'+highest_O.split('-')[1] +':'+ highest_fliC + ':' + highest_fljB)
+    if output_mode == 'debug':
+        print(input_file+'\t'+highest_O.split('-')[1] +':'+ highest_fliC + ':' + highest_fljB)
     result = seqsero_from_formula_to_serotypes(highest_O.split('-')[1],highest_fliC,highest_fljB,Special_dict)
     print(input_file+'\t' + result[0] + '\t' +result[1])
 if __name__ == '__main__':
