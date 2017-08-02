@@ -278,7 +278,7 @@ def main():
         if score > 15: # Arbitrary cut-off for similarity score very low but seems necessary to detect O-3,10 in some cases
             if h.startswith('O') and score > 15:
                 O_dict[h] = score
-            if h.startswith('fl') and score > 70:
+            if h.startswith('fl') and score > 55:
                 H_dict[h] = score
             if (h[:2] != 'fl') and (h[0] != 'O'):
                 Special_dict[h] = score
