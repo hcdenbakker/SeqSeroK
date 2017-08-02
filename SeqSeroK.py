@@ -354,26 +354,10 @@ def main():
                 highest_fljB = s.split('_')[1]
                 highest_fljB_raw = s
                 highest_Score = float(H_dict[s])
-    #deal with fliC and fljB having the same allele...
+    #todo: properly deal with fliC and fljB having the same allele...
     if highest_fljB == highest_fliC:
-        if float(H_dict[highest_fljB_raw]) > float(H_dict[highest_fliC_raw]):
-            #find next highest fliC
-            highest_fliC = '-'
-            highest_Score = 0
-            for s in H_dict:
-                if s.startswith('fliC') and s != highest_fliC_raw:
-                    if float(H_dict[s]) > highest_Score:
-                        highest_fliC = s.split('_')[1]
-                        highest_Score = float(H_dict[s])
-        if float(H_dict[highest_fliC_raw]) > float(H_dict[highest_fljB_raw]):
-            #find next highest fljB
-            highest_fljB = '-'
-            highest_Score = 0
-            for s in H_dict:
-                if s.startswith('fljB') and s != highest_fljB_raw:
-                    if float(H_dict[s]) > highest_Score:
-                        highest_fljB = s.split('_')[1]
-                        highest_Score = float(H_dict[s])
+        #for now a hacky fix to deal with Livingstone, have to come up with a better solution!!!!!
+        highest_fliC = 'd'
     if output_mode == 'debug':
         print(input_file+'\t'+highest_O.split('-')[1] +':'+ highest_fliC + ':' + highest_fljB)
     result = seqsero_from_formula_to_serotypes(highest_O.split('-')[1],highest_fliC,highest_fljB,Special_dict)
