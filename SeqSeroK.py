@@ -7,6 +7,7 @@ import gzip
 import io
 import pickle
 from argparse import ArgumentParser
+import itertools
 
 
 def parse_args():
@@ -17,7 +18,7 @@ def parse_args():
         '-i','--input_file', type=str, required=True, metavar = 'your_fastqgz or fasta',
         help='Single fastq.gz or fasta file input, include path to file if file is not in same directory ')
     parser.add_argument(
-        '-t', '--type', type=str, required=False, default='fastq.gz', metavar = 'file_extension',
+        '-t', '--type', type=str, required=False, default='fastq.gz', metavar = 'fastq.gz or assembly',
         help='Type of data, "fastq.gz" (default) or "assembly"')
     parser.add_argument(
         '-m', '--mode', type=str, required=False, default='normal', metavar = 'normal or debug',
@@ -105,6 +106,139 @@ def multifasta_to_kmers_dict(multifasta):
         lib_dict[h] = set([k for k in createKmerDict_reads([multi_seq_dict[h]], 27)])
     return lib_dict
 
+def Combine(b,c):
+  fliC_combinations=[]
+  fliC_combinations.append(",".join(c))
+  temp_combinations=[]
+  for i in range(len(b)):
+    for x in itertools.combinations(b,i+1):
+      temp_combinations.append(",".join(x))
+  for x in temp_combinations:
+    temp=[]
+    for y in c:
+      temp.append(y)
+    temp.append(x)
+    temp=",".join(temp)
+    temp=temp.split(",")
+    temp.sort()
+    temp=",".join(temp)
+    fliC_combinations.append(temp)
+  return fliC_combinations
+
+
+def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
+  #like test_output_06012017.txt
+  #can add more varialbles like sdf-type, sub-species-type in future (we can conclude it into a special-gene-list)
+  from Initial_Conditions import phase1
+  from Initial_Conditions import phase2
+  from Initial_Conditions import phaseO
+  from Initial_Conditions import sero
+  seronames=[]
+  for i in range(len(phase1)):
+    fliC_combine=[]
+    fljB_combine=[]
+    if phaseO[i]==Otype:
+      ### for fliC, detect every possible combinations to avoid the effect of "["
+      if phase1[i].count("[")==0:
+        fliC_combine.append(phase1[i])
+      elif phase1[i].count("[")>=1:
+        c=[]
+        b=[]
+        if phase1[i][0]=="[" and phase1[i][-1]=="]" and phase1[i].count("[")==1:
+          content=phase1[i].replace("[","").replace("]","")
+          fliC_combine.append(content)
+          fliC_combine.append("-")
+        else:
+          for x in phase1[i].split(","):
+            if "[" in x:
+              b.append(x.replace("[","").replace("]",""))
+            else:
+              c.append(x)
+          fliC_combine=Combine(b,c) #Combine will offer every possible combinations of the formula, like f,[g],t: f,t  f,g,t
+      ### end of fliC "[" detect
+      ### for fljB, detect every possible combinations to avoid the effect of "["
+      if phase2[i].count("[")==0:
+        fljB_combine.append(phase2[i])
+      elif phase2[i].count("[")>=1:
+        d=[]
+        e=[]
+        if phase2[i][0]=="[" and phase2[i][-1]=="]" and phase2[i].count("[")==1:
+          content=phase2[i].replace("[","").replace("]","")
+          fljB_combine.append(content)
+          fljB_combine.append("-")
+        else:
+          for x in phase2[i].split(","):
+            if "[" in x:
+              d.append(x.replace("[","").replace("]",""))
+            else:
+              e.append(x)
+          fljB_combine=Combine(d,e)
+      ### end of fljB "[" detect
+      new_fliC=fliC.split(",") #because some antigen like r,[i] not follow alphabetical order, so use this one to judge and can avoid missings
+      new_fliC.sort()
+      new_fliC=",".join(new_fliC)
+      new_fljB=fljB.split(",")
+      new_fljB.sort()
+      new_fljB=",".join(new_fljB)
+      if (new_fliC in fliC_combine or fliC in fliC_combine) and (new_fljB in fljB_combine or fljB in fljB_combine):
+        seronames.append(sero[i])
+  #analyze seronames
+  if len(seronames)==0:
+    seronames=["N/A (The predicted antigenic profile does not exist in the White-Kauffmann-Le Minor scheme)"]
+  star=""
+  star_line=""
+  if len(seronames)>1:#there are two possible predictions for serotypes
+    star="*"
+    star_line="The predicted serotypes share the same general formula:\t"+Otype+":"+fliC+":"+fljB+"\n"##
+  print ("\n")
+  predict_form=Otype+":"+fliC+":"+fljB#
+  predict_sero=(" or ").join(seronames)
+  ###special test for Enteritidis
+  if predict_form=="9:g,m:-":
+    sdf="-"
+    for x in special_gene_list:
+      if x.startswith("sdf"):
+        sdf="+"
+    predict_form=predict_form+" Sdf prediction:"+sdf
+    if sdf=="-":
+      star="*"
+      star_line="Additional characterization is necessary to assign a serotype to this strain.  Commonly circulating strains of serotype Enteritidis are sdf+, although sdf- strains of serotype Enteritidis are known to exist. Serotype Gallinarum is typically sdf- but should be quite rare. Sdf- strains of serotype Enteritidis and serotype Gallinarum can be differentiated by phenotypic profile or genetic criteria.\n"#+##
+      predict_sero="See comments below"
+  ###end of special test for Enteritidis
+  elif predict_form=="4:i:-":
+    predict_sero="potential monophasic variant of Typhimurium"
+  elif predict_form=="4:r:-":
+    predict_sero="potential monophasic variant of Heidelberg"
+  elif predict_form=="4:b:-":
+    predict_sero="potential monophasic variant of Paratyphi B"
+  elif predict_form=="8:e,h:1,2":
+    predict_sero="Newport"
+    star="*"
+    star_line="Serotype Bardo shares the same antigenic profile with Newport, but Bardo is exceedingly rare."
+  claim="The serotype(s) is/are the only serotype(s) with the indicated antigenic profile currently recognized in the Kauffmann White Scheme.  New serotypes can emerge and the possibility exists that this antigenic profile may emerge in a different subspecies.  Identification of strains to the subspecies level should accompany serotype determination; the same antigenic profile in different subspecies is considered different serotypes."##
+  if "N/A" in predict_sero:
+    claim=""
+  if "Typhimurium" in predict_sero or predict_form=="4:i:-":
+    normal=0
+    mutation=0
+    for x in special_gene_list:
+      if "oafA-O-4_full" in x[0]:
+        normal=x[1]
+      elif "oafA-O-4_5-" in x[0]:
+        mutation=x[1]
+    if normal>mutation:
+      #print "$$$Typhimurium"
+      pass
+    elif normal<mutation:
+      predict_sero=predict_sero.strip()+"(O5-)"
+      star="*"#
+      star_line="Detected the deletion of O5-."
+      #print "$$$Typhimurium_O5-"
+    else:
+      #print "$$$Typhimurium, even no 7 bases difference"
+      pass
+  return predict_form,predict_sero,star,star_line,claim
+
 def main():
     #todo clean up def main, write some functions
     args = parse_args()
@@ -146,7 +280,7 @@ def main():
                 O_dict[h] = score
             if h.startswith('fl') and score > 70:
                 H_dict[h] = score
-            if (h[:2] != 'fl') or (h[0] != 'O'):
+            if (h[:2] != 'fl') and (h[0] != 'O'):
                 Special_dict[h] = score
 
     #call O:
@@ -216,7 +350,8 @@ def main():
             if float(H_dict[s]) > highest_Score:
                 highest_fljB = s.split('_')[1]
                 highest_Score = float(H_dict[s])
-    print(input_file+'\t'+highest_O +':'+ highest_fliC + ':' + highest_fljB)
-
+    #print(input_file+'\t'+highest_O.split('-')[1] +':'+ highest_fliC + ':' + highest_fljB)
+    result = seqsero_from_formula_to_serotypes(highest_O.split('-')[1],highest_fliC,highest_fljB,Special_dict)
+    print(input_file+'\t' + result[0] + '\t' +result[1])
 if __name__ == '__main__':
     main()
