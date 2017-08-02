@@ -190,7 +190,7 @@ def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
   if len(seronames)>1:#there are two possible predictions for serotypes
     star="*"
     star_line="The predicted serotypes share the same general formula:\t"+Otype+":"+fliC+":"+fljB+"\n"##
-  print ("\n")
+  #print ("\n")
   predict_form=Otype+":"+fliC+":"+fljB#
   predict_sero=(" or ").join(seronames)
   ###special test for Enteritidis
