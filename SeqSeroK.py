@@ -222,10 +222,10 @@ def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
     normal=0
     mutation=0
     for x in special_gene_list:
-      if "oafA-O-4_full" in x[0]:
-        normal=x[1]
-      elif "oafA-O-4_5-" in x[0]:
-        mutation=x[1]
+      if "oafA-O-4_full" in x:
+        normal = float(special_gene_list[x])
+      elif "oafA-O-4_5-" in x:
+        mutation = float(special_gene_list[x])
     if normal>mutation:
       #print "$$$Typhimurium"
       pass
