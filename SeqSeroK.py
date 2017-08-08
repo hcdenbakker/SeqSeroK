@@ -19,7 +19,7 @@ def parse_args():
         help='Single fastq.gz or fasta file input, include path to file if file is not in same directory ')
     parser.add_argument(
         '-t', '--type', type=str, required=False, default='fastq.gz', metavar = 'fastq.gz or assembly',
-        help='Type of data, "fastq.gz" (default) or "assembly"')
+        help='Type of data; "fastq.gz" (default), "assembly", "minion_fasta", "minion_fastq"')
     parser.add_argument(
         '-m', '--mode', type=str, required=False, default='normal', metavar = 'normal or debug',
         help='When "debug" is chosen, the full list of matches for all alleles will be given')
@@ -89,6 +89,50 @@ def target_read_kmerizer(file, k, kmerDict):
             break
     return set(target_mers)
 
+def minion_fasta_kmerizer(file, k, kmerDict):
+    i = 1
+    n_reads = 0
+    total_coverage = 0
+    target_mers = {}
+    for line in open(file):
+        if i % 2 == 0:
+            for kmer, rc_kmer in kmers(line.strip().upper(), k):
+                if (kmer in kmerDict) or (rc_kmer in kmerDict):
+                    if kmer in target_mers:
+                        target_mers[kmer] += 1
+                    else:
+                        target_mers[kmer] = 1
+                    if rc_kmer in target_mers:
+                        target_mers[rc_kmer] += 1
+                    else:
+                        target_mers[rc_kmer] = 1
+        #if i == 20:
+         #   break
+        i += 1
+    return set([h for h in target_mers])
+
+def minion_fastq_kmerizer(file, k, kmerDict):
+    i = 1
+    n_reads = 0
+    total_coverage = 0
+    target_mers = {}
+    for line in open(file):
+        if i % 4 == 2:
+            for kmer, rc_kmer in kmers(line.strip().upper(), k):
+                if (kmer in kmerDict) or (rc_kmer in kmerDict):
+                    if kmer in target_mers:
+                        target_mers[kmer] += 1
+                    else:
+                        target_mers[kmer] = 1
+                    if rc_kmer in target_mers:
+                        target_mers[rc_kmer] += 1
+                    else:
+                        target_mers[rc_kmer] = 1
+        #if i == 20:
+         #   break
+        i += 1
+    return set([h for h in target_mers])
+
 def multifasta_single_string2(multifasta):
     single_string = ''
     with open(multifasta, 'r') as f:
@@ -98,6 +142,11 @@ def multifasta_single_string2(multifasta):
             else:
                 single_string += line.strip()
     return single_string
+
+def kmers(seq, k):
+    rev_comp = reverse_complement(seq)
+    for start in range(1,len(seq) - k + 1):
+        yield seq[start:start + k], rev_comp[-(start + k):-start]
 
 def multifasta_to_kmers_dict(multifasta):
     multi_seq_dict = multifasta_dict(multifasta)
@@ -266,6 +315,10 @@ def main():
         input_Ks = set([k for k in createKmerDict_reads([multifasta_single_string(input_file)], 27)])
     if data_type == 'fastq.gz':
         input_Ks = target_read_kmerizer(input_file, 27, set(kmers))
+    if data_type == 'minion_2d_fasta':
+        input_Ks = minion_fasta_kmerizer(input_file, 27, set(kmers))
+    if data_type == 'minion_2d_fastq':
+        input_Ks = minion_fastq_kmerizer(input_file, 27, set(kmers))
     #print(len(input_Ks))
     #keep lists of O, H and special genes; both list of headers and
     O_dict = {}
@@ -358,5 +411,7 @@ def main():
         print(input_file+'\t'+highest_O.split('-')[1] +':'+ highest_fliC + ':' + highest_fljB)
     result = seqsero_from_formula_to_serotypes(highest_O.split('-')[1],highest_fliC,highest_fljB,Special_dict)
     print(input_file+'\t' + result[0] + '\t' +result[1])
+
+
 if __name__ == '__main__':
     main()
