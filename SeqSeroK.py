@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 from sys import argv
 import os
 import gzip
@@ -328,10 +327,10 @@ def main():
         score = (len(lib_dict[h] & input_Ks)/ len(lib_dict[h])) * 100
         if output_mode == 'debug':
             print(h, score)
-        if score > 15: # Arbitrary cut-off for similarity score very low but seems necessary to detect O-3,10 in some cases
+        if score > 1: # Arbitrary cut-off for similarity score very low but seems necessary to detect O-3,10 in some cases
             if h.startswith('O') and score > 15:
                 O_dict[h] = score
-            if h.startswith('fl') and score > 55:
+            if h.startswith('fl') and score > 40:
                 H_dict[h] = score
             if (h[:2] != 'fl') and (h[0] != 'O'):
                 Special_dict[h] = score
@@ -354,15 +353,11 @@ def main():
                 O9 = 0
                 for z in Special_dict:
                     if "tyr-O-9" in z:
-                        O9 = Special_dict[z]
+                        O9 = float(Special_dict[z])
                     if "tyr-O-2" in z:
-                        O2 = Special_dict[z]
+                        O2 = float(Special_dict[z])
                 if O2 > O9:
                     highest_O = "O-2"
-                elif O2 < O9:
-                    pass
-                else:
-                    pass
         elif ("O-3,10_wzx__1539" in O_dict) and (
             "O-9,46_wzy__1191" in O_dict):  # and float(O310_wzx)/float(num_1) > 0.1 and float(O946_wzy)/float(num_1) > 0.1
             if "O-3,10_not_in_1,3,19__1519" in O_dict:  # and float(O310_no_1319)/float(num_1) > 0.1
@@ -379,12 +374,17 @@ def main():
                     if float(O_dict[x]) >= max_score:
                         max_score = float(O_dict[x])
                         highest_O = x.split("_")[0]
+                        #print('highest O:', highest_O)
                 if highest_O == "O-1,3,19":
-                    #print(O_dict)
-                    # always the second ?
-                    O_list = [h for h in O_dict]
-                    highest_O = O_list[1].split("_")[0]
-                    # print "$$$Most possilble Otype: ",O_choice
+                    highest_O = '-'
+                    max_score = 0
+                    for x in O_dict:
+                        if x == 'O-1,3,19_not_in_3,10__130':
+                            pass
+                        else:
+                            if float(O_dict[x]) >= max_score:
+                                max_score = float(O_dict[x])
+                                highest_O = x.split("_")[0]
             except:
                 pass
     #call_fliC:
