@@ -70,19 +70,59 @@ def multifasta_single_string(multifasta):
     multifasta_list = [line.strip() for line in open(multifasta, 'r') if (len(line.strip()) > 0) and (line.strip()[0] != '>')]
     return ''.join(multifasta_list)
 
+def target_multifasta_kmerizer(multifasta, k, kmerDict):
+  forward_length=300 #if find the target, put forward 300 bases
+  reverse_length=2200 #if find the target, put reverse 2200 bases
+  #kmerDict is from set(kmers); kmers is from lib_dict using a for loop; lib_dict from multifasta_to_kmers_dict('H_and_O_and_specific_genes.fasta')
+  target_mers = []
+  multifasta_list = [line.strip() for line in open(multifasta, 'r') if (len(line.strip()) > 0) and (line.strip()[0] != '>')]
+  unit_length=len(multifasta_list[0])
+  forward_lines=int(forward_length/unit_length)+1
+  reverse_lines=int(forward_length/unit_length)+1
+  start_num=0
+  end_num=0
+  for i in range(len(multifasta_list)):
+    if i not in range(start_num,end_num):#avoid computational repetition 
+      line=multifasta_list[i]
+      start = int((len(line) - k) // 2)
+      s1 = line[start:k + start]
+      if s1 in kmerDict: #detect it is a potential read or not (use the middle part)
+        if i-forward_lines>=0:
+          start_num=i-forward_lines
+        else:
+          start_num=0
+        if i+reverse_lines<=len(multifasta_list)-1:
+          end_num=i+reverse_lines
+        else:
+          end_num=len(multifasta_list)-1
+        target_list = [x.strip() for x in multifasta_list[start_num:end_num]]  
+        target_line="".join(target_list)
+        target_mers += [k1 for k1 in createKmerDict_reads([str(target_line)], k)] 
+    else:
+      pass
+  return set(target_mers)
+
 def target_read_kmerizer(file, k, kmerDict):
     i = 1
     n_reads = 0
     total_coverage = 0
     target_mers = []
-    for line in io.BufferedReader(gzip.open(file)):
+    if file.endswith(".gz"):
+      file_content=io.BufferedReader(gzip.open(file))
+    else:
+      file_content=open(file,"r").readlines()
+    for line in file_content:
         start = int((len(line) - k) // 2)
         if i % 4 == 2:
-            s1 = line[start:k + start].decode()
-            if s1 in kmerDict:
+            if file.endswith(".gz"):
+                s1 = line[start:k + start].decode()
+                line=line.decode()
+            else:
+                s1 = line[start:k + start]
+            if s1 in kmerDict: #detect it is a potential read or not (use the middle part)
                 n_reads += 1
                 total_coverage += len(line)
-                target_mers += [k for k in createKmerDict_reads([str(line.decode())], k)]
+                target_mers += [k1 for k1 in createKmerDict_reads([str(line)], k)] #i changed it to k1, just want to avoid the mixes of this "k" (kmer) to the "k" above (kmer length) 
         i += 1
         if total_coverage >= 40000:
             break
@@ -311,7 +351,7 @@ def main():
     for h in lib_dict:
         kmers += lib_dict[h]
     if data_type == 'assembly':
-        input_Ks = set([k for k in createKmerDict_reads([multifasta_single_string(input_file)], 27)])
+        input_Ks = target_multifasta_kmerizer(input_file, 27, set(kmers))
     if data_type == 'fastq.gz':
         input_Ks = target_read_kmerizer(input_file, 27, set(kmers))
     if data_type == 'minion_2d_fasta':
