@@ -73,7 +73,6 @@ def multifasta_single_string(multifasta):
 def target_multifasta_kmerizer(multifasta, k, kmerDict):
   forward_length=300 #if find the target, put forward 300 bases
   reverse_length=2200 #if find the target, put reverse 2200 bases
-  #kmerDict is from set(kmers); kmers is from lib_dict using a for loop; lib_dict from multifasta_to_kmers_dict('H_and_O_and_specific_genes.fasta')
   target_mers = []
   multifasta_list = [line.strip() for line in open(multifasta, 'r') if (len(line.strip()) > 0) and (line.strip()[0] != '>')]
   unit_length=len(multifasta_list[0])
@@ -97,7 +96,7 @@ def target_multifasta_kmerizer(multifasta, k, kmerDict):
           end_num=len(multifasta_list)-1
         target_list = [x.strip() for x in multifasta_list[start_num:end_num]]  
         target_line="".join(target_list)
-        target_mers += [k1 for k1 in createKmerDict_reads([str(target_line)], k)] 
+        target_mers += [k1 for k1 in createKmerDict_reads([str(target_line)], k)] ##changed k to k1, just want to avoid the mixes of this "k" (kmer) to the "k" above (kmer length) 
     else:
       pass
   return set(target_mers)
@@ -122,7 +121,7 @@ def target_read_kmerizer(file, k, kmerDict):
             if s1 in kmerDict: #detect it is a potential read or not (use the middle part)
                 n_reads += 1
                 total_coverage += len(line)
-                target_mers += [k1 for k1 in createKmerDict_reads([str(line)], k)] #i changed it to k1, just want to avoid the mixes of this "k" (kmer) to the "k" above (kmer length) 
+                target_mers += [k1 for k1 in createKmerDict_reads([str(line)], k)] #changed k to k1, just want to avoid the mixes of this "k" (kmer) to the "k" above (kmer length) 
         i += 1
         if total_coverage >= 40000:
             break
@@ -145,8 +144,6 @@ def minion_fasta_kmerizer(file, k, kmerDict):
                         target_mers[rc_kmer] += 1
                     else:
                         target_mers[rc_kmer] = 1
-        #if i == 20:
-         #   break
         i += 1
     return set([h for h in target_mers])
 
@@ -167,8 +164,6 @@ def minion_fastq_kmerizer(file, k, kmerDict):
                         target_mers[rc_kmer] += 1
                     else:
                         target_mers[rc_kmer] = 1
-        #if i == 20:
-         #   break
         i += 1
     return set([h for h in target_mers])
 
@@ -277,9 +272,8 @@ def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
   star_line=""
   if len(seronames)>1:#there are two possible predictions for serotypes
     star="*"
-    star_line="The predicted serotypes share the same general formula:\t"+Otype+":"+fliC+":"+fljB+"\n"##
-  #print ("\n")
-  predict_form=Otype+":"+fliC+":"+fljB#
+    star_line="The predicted serotypes share the same general formula:\t"+Otype+":"+fliC+":"+fljB+"\n"
+  predict_form=Otype+":"+fliC+":"+fljB
   predict_sero=(" or ").join(seronames)
   ###special test for Enteritidis
   if predict_form=="9:g,m:-":
@@ -290,7 +284,7 @@ def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
     predict_form=predict_form+" Sdf prediction:"+sdf
     if sdf=="-":
       star="*"
-      star_line="Additional characterization is necessary to assign a serotype to this strain.  Commonly circulating strains of serotype Enteritidis are sdf+, although sdf- strains of serotype Enteritidis are known to exist. Serotype Gallinarum is typically sdf- but should be quite rare. Sdf- strains of serotype Enteritidis and serotype Gallinarum can be differentiated by phenotypic profile or genetic criteria.\n"#+##
+      star_line="Additional characterization is necessary to assign a serotype to this strain.  Commonly circulating strains of serotype Enteritidis are sdf+, although sdf- strains of serotype Enteritidis are known to exist. Serotype Gallinarum is typically sdf- but should be quite rare. Sdf- strains of serotype Enteritidis and serotype Gallinarum can be differentiated by phenotypic profile or genetic criteria.\n"
       predict_sero="Gallinarum/Enteritidis sdf -"
   ###end of special test for Enteritidis
   elif predict_form=="4:i:-":
@@ -303,7 +297,7 @@ def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
     predict_sero="Newport"
     star="*"
     star_line="Serotype Bardo shares the same antigenic profile with Newport, but Bardo is exceedingly rare."
-  claim="The serotype(s) is/are the only serotype(s) with the indicated antigenic profile currently recognized in the Kauffmann White Scheme.  New serotypes can emerge and the possibility exists that this antigenic profile may emerge in a different subspecies.  Identification of strains to the subspecies level should accompany serotype determination; the same antigenic profile in different subspecies is considered different serotypes."##
+  claim="The serotype(s) is/are the only serotype(s) with the indicated antigenic profile currently recognized in the Kauffmann White Scheme.  New serotypes can emerge and the possibility exists that this antigenic profile may emerge in a different subspecies.  Identification of strains to the subspecies level should accompany serotype determination; the same antigenic profile in different subspecies is considered different serotypes."
   if "N/A" in predict_sero:
     claim=""
   if "Typhimurium" in predict_sero or predict_form=="4:i:-":
@@ -315,15 +309,12 @@ def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
       elif "oafA-O-4_5-" in x:
         mutation = float(special_gene_list[x])
     if normal>mutation:
-      #print "$$$Typhimurium"
       pass
     elif normal<mutation:
       predict_sero=predict_sero.strip()+"(O5-)"
-      star="*"#
+      star="*"
       star_line="Detected the deletion of O5-."
-      #print "$$$Typhimurium_O5-"
     else:
-      #print "$$$Typhimurium, even no 7 bases difference"
       pass
   return predict_form,predict_sero,star,star_line,claim
 
@@ -333,9 +324,7 @@ def main():
     input_file = args.input_file
     data_type = args.type
     output_mode = args.mode
-    #print(len(input_fasta_ks))
     ex_dir = os.path.dirname(os.path.realpath(__file__))
-    #print(ex_dir)
     try:
         f = open(ex_dir +'/antigens.pickle', 'rb')
         lib_dict = pickle.load(f)
@@ -345,8 +334,6 @@ def main():
         f = open(ex_dir +'/antigens.pickle', "wb")
         pickle.dump(lib_dict, f)
         f.close()
-        #print('Created lib')
-    #kmers = [lib_dict[h] for h in lib_dict]
     kmers=[]
     for h in lib_dict:
         kmers += lib_dict[h]
@@ -358,7 +345,6 @@ def main():
         input_Ks = minion_fasta_kmerizer(input_file, 27, set(kmers))
     if data_type == 'minion_2d_fastq':
         input_Ks = minion_fastq_kmerizer(input_file, 27, set(kmers))
-    #print(len(input_Ks))
     #keep lists of O, H and special genes; both list of headers and
     O_dict = {}
     H_dict = {}
@@ -374,7 +360,6 @@ def main():
                 H_dict[h] = score
             if (h[:2] != 'fl') and (h[0] != 'O'):
                 Special_dict[h] = score
-
     #call O:
     highest_O = '-'
     if len(O_dict) == 0:
@@ -383,10 +368,8 @@ def main():
         if 'O-9,46_wbaV__1002' in O_dict:  # not sure should use and float(O9_wbaV)/float(num_1) > 0.1
             if 'O-9,46_wzy__1191' in O_dict:  # and float(O946_wzy)/float(num_1) > 0.1
                 highest_O = "O-9,46"
-                # print "$$$Most possilble Otype:  O-9,46"
             elif "O-9,46,27_partial_wzy__1019" in O_dict:  # and float(O94627)/float(num_1) > 0.1
                 highest_O = "O-9,46,27"
-                # print "$$$Most possilble Otype:  O-9,46,27"
             else:
                 highest_O = "O-9"  # next, detect O9 vs O2?
                 O2 = 0
@@ -402,10 +385,8 @@ def main():
             "O-9,46_wzy__1191" in O_dict):  # and float(O310_wzx)/float(num_1) > 0.1 and float(O946_wzy)/float(num_1) > 0.1
             if "O-3,10_not_in_1,3,19__1519" in O_dict:  # and float(O310_no_1319)/float(num_1) > 0.1
                 highest_O = "O-3,10"
-                # print "$$$Most possilble Otype:  O-3,10 (contain O-3,10_not_in_1,3,19)"
             else:
                 highest_O = "O-1,3,19"
-                # print "$$$Most possilble Otype:  O-1,3,19 (not contain O-3,10_not_in_1,3,19)"
         ### end of special test for O9,46 and O3,10 family
         else:
             try:
@@ -414,7 +395,6 @@ def main():
                     if float(O_dict[x]) >= max_score:
                         max_score = float(O_dict[x])
                         highest_O = x.split("_")[0]
-                        #print('highest O:', highest_O)
                 if highest_O == "O-1,3,19":
                     highest_O = '-'
                     max_score = 0
