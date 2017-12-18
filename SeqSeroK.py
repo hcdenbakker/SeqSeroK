@@ -113,14 +113,22 @@ def multifasta_single_string(multifasta):
     return ''.join(multifasta_list)
 
 
+def chunk_a_long_sequence(long_sequence, chunk_size=60):
+    chunk_list = []
+    steps = len(long_sequence) // 60  #how many chunks
+    for i in range(steps):
+        chunk_list.append(long_sequence[i * chunk_size:(i + 1) * chunk_size])
+    chunk_list.append(long_sequence[steps * chunk_size:len(long_sequence)])
+    return chunk_list
+
+
 def target_multifasta_kmerizer(multifasta, k, kmerDict):
     forward_length = 300  #if find the target, put forward 300 bases
-    reverse_length = 2200  #if find the target, put reverse 2200 bases
+    reverse_length = 2200  #if find the target, put backward 2200 bases
+    chunk_size = 60  #it will firstly chunk the single long sequence to multiple smaller sequences, it controls the size of those smaller sequences
     target_mers = []
-    multifasta_list = [
-        line.strip() for line in open(multifasta, 'r')
-        if (len(line.strip()) > 0) and (line.strip()[0] != '>')
-    ]
+    long_single_string = multifasta_single_string(multifasta)
+    multifasta_list = chunk_a_long_sequence(long_single_string, chunk_size)
     unit_length = len(multifasta_list[0])
     forward_lines = int(forward_length / unit_length) + 1
     reverse_lines = int(forward_length / unit_length) + 1
