@@ -11,34 +11,69 @@ import itertools
 
 def parse_args():
     "Parse the input arguments, use '-h' for help."
-    parser = ArgumentParser(description='SalmID - rapid Kmer based Salmonella identifier from raw data')
+    parser = ArgumentParser(
+        description=
+        'SalmID - rapid Kmer based Salmonella identifier from raw data')
     # inputs
     parser.add_argument(
-        '-i','--input_file', type=str, required=True, metavar = 'your_fastqgz or fasta',
-        help='Single fastq.gz or fasta file input, include path to file if file is not in same directory ')
+        '-i',
+        '--input_file',
+        type=str,
+        required=True,
+        metavar='your_fastqgz or fasta',
+        help=
+        'Single fastq.gz or fasta file input, include path to file if file is not in same directory '
+    )
     parser.add_argument(
-        '-t', '--type', type=str, required=False, default='fastq.gz', metavar = 'fastq.gz or assembly',
-        help='Type of data; "fastq.gz" (default), "assembly", "minion_fasta", "minion_fastq"')
+        '-t',
+        '--type',
+        type=str,
+        required=False,
+        default='fastq.gz',
+        metavar='fastq.gz or assembly',
+        help=
+        'Type of data; "fastq.gz" (default), "assembly", "minion_fasta", "minion_fastq"'
+    )
     parser.add_argument(
-        '-m', '--mode', type=str, required=False, default='normal', metavar = 'normal or debug',
-        help='When "debug" is chosen, the full list of matches for all alleles will be given')
+        '-m',
+        '--mode',
+        type=str,
+        required=False,
+        default='normal',
+        metavar='normal or debug',
+        help=
+        'When "debug" is chosen, the full list of matches for all alleles will be given'
+    )
     return parser.parse_args()
 
 
 def reverse_complement(sequence):
-    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N', 'M': 'K', 'R': 'Y', 'W': 'W',
-                            'S': 'S', 'Y': 'R', 'K': 'M', 'V': 'B', 'H': 'D', 'D': 'H', 'B': 'V'}
+    complement = {
+        'A': 'T',
+        'C': 'G',
+        'G': 'C',
+        'T': 'A',
+        'N': 'N',
+        'M': 'K',
+        'R': 'Y',
+        'W': 'W',
+        'S': 'S',
+        'Y': 'R',
+        'K': 'M',
+        'V': 'B',
+        'H': 'D',
+        'D': 'H',
+        'B': 'V'
+    }
     return "".join(complement[base] for base in reversed(sequence))
-
-
 
 
 def createKmerDict_reads(list_of_strings, kmer):
     kmer_table = {}
     for string in list_of_strings:
         sequence = string.strip('\n')
-        for i in range(len(sequence)-kmer+1):
-            new_mer =sequence[i:i+kmer].upper()
+        for i in range(len(sequence) - kmer + 1):
+            new_mer = sequence[i:i + kmer].upper()
             new_mer_rc = reverse_complement(new_mer)
             if new_mer in kmer_table:
                 kmer_table[new_mer.upper()] += 1
@@ -50,8 +85,11 @@ def createKmerDict_reads(list_of_strings, kmer):
                 kmer_table[new_mer_rc.upper()] = 1
     return kmer_table
 
+
 def multifasta_dict(multifasta):
-    multifasta_list = [line.strip() for line in open(multifasta, 'r') if len(line.strip()) > 0]
+    multifasta_list = [
+        line.strip() for line in open(multifasta, 'r') if len(line.strip()) > 0
+    ]
     headers = [i for i in multifasta_list if i[0] == '>']
     multifasta_dict = {}
     for h in headers:
@@ -66,27 +104,90 @@ def multifasta_dict(multifasta):
                     multifasta_dict[h[1:]] = element
     return multifasta_dict
 
+
 def multifasta_single_string(multifasta):
-    multifasta_list = [line.strip() for line in open(multifasta, 'r') if (len(line.strip()) > 0) and (line.strip()[0] != '>')]
+    multifasta_list = [
+        line.strip() for line in open(multifasta, 'r')
+        if (len(line.strip()) > 0) and (line.strip()[0] != '>')
+    ]
     return ''.join(multifasta_list)
+
+
+def chunk_a_long_sequence(long_sequence, chunk_size=60):
+    chunk_list = []
+    steps = len(long_sequence) // 60  #how many chunks
+    for i in range(steps):
+        chunk_list.append(long_sequence[i * chunk_size:(i + 1) * chunk_size])
+    chunk_list.append(long_sequence[steps * chunk_size:len(long_sequence)])
+    return chunk_list
+
+
+def target_multifasta_kmerizer(multifasta, k, kmerDict):
+    forward_length = 300  #if find the target, put forward 300 bases
+    reverse_length = 2200  #if find the target, put backward 2200 bases
+    chunk_size = 60  #it will firstly chunk the single long sequence to multiple smaller sequences, it controls the size of those smaller sequences
+    target_mers = []
+    long_single_string = multifasta_single_string(multifasta)
+    multifasta_list = chunk_a_long_sequence(long_single_string, chunk_size)
+    unit_length = len(multifasta_list[0])
+    forward_lines = int(forward_length / unit_length) + 1
+    reverse_lines = int(forward_length / unit_length) + 1
+    start_num = 0
+    end_num = 0
+    for i in range(len(multifasta_list)):
+        if i not in range(start_num, end_num):  #avoid computational repetition
+            line = multifasta_list[i]
+            start = int((len(line) - k) // 2)
+            s1 = line[start:k + start]
+            if s1 in kmerDict:  #detect it is a potential read or not (use the middle part)
+                if i - forward_lines >= 0:
+                    start_num = i - forward_lines
+                else:
+                    start_num = 0
+                if i + reverse_lines <= len(multifasta_list) - 1:
+                    end_num = i + reverse_lines
+                else:
+                    end_num = len(multifasta_list) - 1
+                target_list = [
+                    x.strip() for x in multifasta_list[start_num:end_num]
+                ]
+                target_line = "".join(target_list)
+                target_mers += [
+                    k1 for k1 in createKmerDict_reads([str(target_line)], k)
+                ]  ##changed k to k1, just want to avoid the mixes of this "k" (kmer) to the "k" above (kmer length)
+        else:
+            pass
+    return set(target_mers)
+
 
 def target_read_kmerizer(file, k, kmerDict):
     i = 1
     n_reads = 0
     total_coverage = 0
     target_mers = []
-    for line in io.BufferedReader(gzip.open(file)):
+    if file.endswith(".gz"):
+        file_content = io.BufferedReader(gzip.open(file))
+    else:
+        file_content = open(file, "r").readlines()
+    for line in file_content:
         start = int((len(line) - k) // 2)
         if i % 4 == 2:
-            s1 = line[start:k + start].decode()
-            if s1 in kmerDict:
+            if file.endswith(".gz"):
+                s1 = line[start:k + start].decode()
+                line = line.decode()
+            else:
+                s1 = line[start:k + start]
+            if s1 in kmerDict:  #detect it is a potential read or not (use the middle part)
                 n_reads += 1
                 total_coverage += len(line)
-                target_mers += [k for k in createKmerDict_reads([str(line.decode())], k)]
+                target_mers += [
+                    k1 for k1 in createKmerDict_reads([str(line)], k)
+                ]  #changed k to k1, just want to avoid the mixes of this "k" (kmer) to the "k" above (kmer length)
         i += 1
         if total_coverage >= 40000:
             break
     return set(target_mers)
+
 
 def minion_fasta_kmerizer(file, k, kmerDict):
     i = 1
@@ -105,10 +206,9 @@ def minion_fasta_kmerizer(file, k, kmerDict):
                         target_mers[rc_kmer] += 1
                     else:
                         target_mers[rc_kmer] = 1
-        #if i == 20:
-         #   break
         i += 1
     return set([h for h in target_mers])
+
 
 def minion_fastq_kmerizer(file, k, kmerDict):
     i = 1
@@ -127,10 +227,9 @@ def minion_fastq_kmerizer(file, k, kmerDict):
                         target_mers[rc_kmer] += 1
                     else:
                         target_mers[rc_kmer] = 1
-        #if i == 20:
-         #   break
         i += 1
     return set([h for h in target_mers])
+
 
 def multifasta_single_string2(multifasta):
     single_string = ''
@@ -142,150 +241,161 @@ def multifasta_single_string2(multifasta):
                 single_string += line.strip()
     return single_string
 
+
 def kmers(seq, k):
     rev_comp = reverse_complement(seq)
-    for start in range(1,len(seq) - k + 1):
+    for start in range(1, len(seq) - k + 1):
         yield seq[start:start + k], rev_comp[-(start + k):-start]
+
 
 def multifasta_to_kmers_dict(multifasta):
     multi_seq_dict = multifasta_dict(multifasta)
     lib_dict = {}
     for h in multi_seq_dict:
-        lib_dict[h] = set([k for k in createKmerDict_reads([multi_seq_dict[h]], 27)])
+        lib_dict[h] = set(
+            [k for k in createKmerDict_reads([multi_seq_dict[h]], 27)])
     return lib_dict
 
-def Combine(b,c):
-  fliC_combinations=[]
-  fliC_combinations.append(",".join(c))
-  temp_combinations=[]
-  for i in range(len(b)):
-    for x in itertools.combinations(b,i+1):
-      temp_combinations.append(",".join(x))
-  for x in temp_combinations:
-    temp=[]
-    for y in c:
-      temp.append(y)
-    temp.append(x)
-    temp=",".join(temp)
-    temp=temp.split(",")
-    temp.sort()
-    temp=",".join(temp)
-    fliC_combinations.append(temp)
-  return fliC_combinations
+
+def Combine(b, c):
+    fliC_combinations = []
+    fliC_combinations.append(",".join(c))
+    temp_combinations = []
+    for i in range(len(b)):
+        for x in itertools.combinations(b, i + 1):
+            temp_combinations.append(",".join(x))
+    for x in temp_combinations:
+        temp = []
+        for y in c:
+            temp.append(y)
+        temp.append(x)
+        temp = ",".join(temp)
+        temp = temp.split(",")
+        temp.sort()
+        temp = ",".join(temp)
+        fliC_combinations.append(temp)
+    return fliC_combinations
 
 
-def seqsero_from_formula_to_serotypes(Otype,fliC,fljB,special_gene_list):
-  #like test_output_06012017.txt
-  #can add more varialbles like sdf-type, sub-species-type in future (we can conclude it into a special-gene-list)
-  from Initial_Conditions import phase1
-  from Initial_Conditions import phase2
-  from Initial_Conditions import phaseO
-  from Initial_Conditions import sero
-  seronames=[]
-  for i in range(len(phase1)):
-    fliC_combine=[]
-    fljB_combine=[]
-    if phaseO[i]==Otype:
-      ### for fliC, detect every possible combinations to avoid the effect of "["
-      if phase1[i].count("[")==0:
-        fliC_combine.append(phase1[i])
-      elif phase1[i].count("[")>=1:
-        c=[]
-        b=[]
-        if phase1[i][0]=="[" and phase1[i][-1]=="]" and phase1[i].count("[")==1:
-          content=phase1[i].replace("[","").replace("]","")
-          fliC_combine.append(content)
-          fliC_combine.append("-")
+def seqsero_from_formula_to_serotypes(Otype, fliC, fljB, special_gene_list):
+    #like test_output_06012017.txt
+    #can add more varialbles like sdf-type, sub-species-type in future (we can conclude it into a special-gene-list)
+    from Initial_Conditions import phase1
+    from Initial_Conditions import phase2
+    from Initial_Conditions import phaseO
+    from Initial_Conditions import sero
+    seronames = []
+    for i in range(len(phase1)):
+        fliC_combine = []
+        fljB_combine = []
+        if phaseO[i] == Otype:
+            ### for fliC, detect every possible combinations to avoid the effect of "["
+            if phase1[i].count("[") == 0:
+                fliC_combine.append(phase1[i])
+            elif phase1[i].count("[") >= 1:
+                c = []
+                b = []
+                if phase1[i][0] == "[" and phase1[i][-1] == "]" and phase1[i].count(
+                        "[") == 1:
+                    content = phase1[i].replace("[", "").replace("]", "")
+                    fliC_combine.append(content)
+                    fliC_combine.append("-")
+                else:
+                    for x in phase1[i].split(","):
+                        if "[" in x:
+                            b.append(x.replace("[", "").replace("]", ""))
+                        else:
+                            c.append(x)
+                    fliC_combine = Combine(
+                        b, c
+                    )  #Combine will offer every possible combinations of the formula, like f,[g],t: f,t  f,g,t
+            ### end of fliC "[" detect
+            ### for fljB, detect every possible combinations to avoid the effect of "["
+            if phase2[i].count("[") == 0:
+                fljB_combine.append(phase2[i])
+            elif phase2[i].count("[") >= 1:
+                d = []
+                e = []
+                if phase2[i][0] == "[" and phase2[i][-1] == "]" and phase2[i].count(
+                        "[") == 1:
+                    content = phase2[i].replace("[", "").replace("]", "")
+                    fljB_combine.append(content)
+                    fljB_combine.append("-")
+                else:
+                    for x in phase2[i].split(","):
+                        if "[" in x:
+                            d.append(x.replace("[", "").replace("]", ""))
+                        else:
+                            e.append(x)
+                    fljB_combine = Combine(d, e)
+            ### end of fljB "[" detect
+            new_fliC = fliC.split(
+                ","
+            )  #because some antigen like r,[i] not follow alphabetical order, so use this one to judge and can avoid missings
+            new_fliC.sort()
+            new_fliC = ",".join(new_fliC)
+            new_fljB = fljB.split(",")
+            new_fljB.sort()
+            new_fljB = ",".join(new_fljB)
+            if (new_fliC in fliC_combine
+                    or fliC in fliC_combine) and (new_fljB in fljB_combine
+                                                  or fljB in fljB_combine):
+                seronames.append(sero[i])
+    #analyze seronames
+    if len(seronames) == 0:
+        seronames = [
+            "N/A (The predicted antigenic profile does not exist in the White-Kauffmann-Le Minor scheme)"
+        ]
+    star = ""
+    star_line = ""
+    if len(seronames) > 1:  #there are two possible predictions for serotypes
+        star = "*"
+        star_line = "The predicted serotypes share the same general formula:\t" + Otype + ":" + fliC + ":" + fljB + "\n"
+    predict_form = Otype + ":" + fliC + ":" + fljB
+    predict_sero = (" or ").join(seronames)
+    ###special test for Enteritidis
+    if predict_form == "9:g,m:-":
+        sdf = "-"
+        for x in special_gene_list:
+            if x.startswith("sdf"):
+                sdf = "+"
+        predict_form = predict_form + " Sdf prediction:" + sdf
+        if sdf == "-":
+            star = "*"
+            star_line = "Additional characterization is necessary to assign a serotype to this strain.  Commonly circulating strains of serotype Enteritidis are sdf+, although sdf- strains of serotype Enteritidis are known to exist. Serotype Gallinarum is typically sdf- but should be quite rare. Sdf- strains of serotype Enteritidis and serotype Gallinarum can be differentiated by phenotypic profile or genetic criteria.\n"
+            predict_sero = "Gallinarum/Enteritidis sdf -"
+    ###end of special test for Enteritidis
+    elif predict_form == "4:i:-":
+        predict_sero = "potential monophasic variant of Typhimurium"
+    elif predict_form == "4:r:-":
+        predict_sero = "potential monophasic variant of Heidelberg"
+    elif predict_form == "4:b:-":
+        predict_sero = "potential monophasic variant of Paratyphi B"
+    elif predict_form == "8:e,h:1,2":
+        predict_sero = "Newport"
+        star = "*"
+        star_line = "Serotype Bardo shares the same antigenic profile with Newport, but Bardo is exceedingly rare."
+    claim = "The serotype(s) is/are the only serotype(s) with the indicated antigenic profile currently recognized in the Kauffmann White Scheme.  New serotypes can emerge and the possibility exists that this antigenic profile may emerge in a different subspecies.  Identification of strains to the subspecies level should accompany serotype determination; the same antigenic profile in different subspecies is considered different serotypes."
+    if "N/A" in predict_sero:
+        claim = ""
+    if "Typhimurium" in predict_sero or predict_form == "4:i:-":
+        normal = 0
+        mutation = 0
+        for x in special_gene_list:
+            if "oafA-O-4_full" in x:
+                normal = float(special_gene_list[x])
+            elif "oafA-O-4_5-" in x:
+                mutation = float(special_gene_list[x])
+        if normal > mutation:
+            pass
+        elif normal < mutation:
+            predict_sero = predict_sero.strip() + "(O5-)"
+            star = "*"
+            star_line = "Detected the deletion of O5-."
         else:
-          for x in phase1[i].split(","):
-            if "[" in x:
-              b.append(x.replace("[","").replace("]",""))
-            else:
-              c.append(x)
-          fliC_combine=Combine(b,c) #Combine will offer every possible combinations of the formula, like f,[g],t: f,t  f,g,t
-      ### end of fliC "[" detect
-      ### for fljB, detect every possible combinations to avoid the effect of "["
-      if phase2[i].count("[")==0:
-        fljB_combine.append(phase2[i])
-      elif phase2[i].count("[")>=1:
-        d=[]
-        e=[]
-        if phase2[i][0]=="[" and phase2[i][-1]=="]" and phase2[i].count("[")==1:
-          content=phase2[i].replace("[","").replace("]","")
-          fljB_combine.append(content)
-          fljB_combine.append("-")
-        else:
-          for x in phase2[i].split(","):
-            if "[" in x:
-              d.append(x.replace("[","").replace("]",""))
-            else:
-              e.append(x)
-          fljB_combine=Combine(d,e)
-      ### end of fljB "[" detect
-      new_fliC=fliC.split(",") #because some antigen like r,[i] not follow alphabetical order, so use this one to judge and can avoid missings
-      new_fliC.sort()
-      new_fliC=",".join(new_fliC)
-      new_fljB=fljB.split(",")
-      new_fljB.sort()
-      new_fljB=",".join(new_fljB)
-      if (new_fliC in fliC_combine or fliC in fliC_combine) and (new_fljB in fljB_combine or fljB in fljB_combine):
-        seronames.append(sero[i])
-  #analyze seronames
-  if len(seronames)==0:
-    seronames=["N/A (The predicted antigenic profile does not exist in the White-Kauffmann-Le Minor scheme)"]
-  star=""
-  star_line=""
-  if len(seronames)>1:#there are two possible predictions for serotypes
-    star="*"
-    star_line="The predicted serotypes share the same general formula:\t"+Otype+":"+fliC+":"+fljB+"\n"##
-  #print ("\n")
-  predict_form=Otype+":"+fliC+":"+fljB#
-  predict_sero=(" or ").join(seronames)
-  ###special test for Enteritidis
-  if predict_form=="9:g,m:-":
-    sdf="-"
-    for x in special_gene_list:
-      if x.startswith("sdf"):
-        sdf="+"
-    predict_form=predict_form+" Sdf prediction:"+sdf
-    if sdf=="-":
-      star="*"
-      star_line="Additional characterization is necessary to assign a serotype to this strain.  Commonly circulating strains of serotype Enteritidis are sdf+, although sdf- strains of serotype Enteritidis are known to exist. Serotype Gallinarum is typically sdf- but should be quite rare. Sdf- strains of serotype Enteritidis and serotype Gallinarum can be differentiated by phenotypic profile or genetic criteria.\n"#+##
-      predict_sero="Gallinarum/Enteritidis sdf -"
-  ###end of special test for Enteritidis
-  elif predict_form=="4:i:-":
-    predict_sero="potential monophasic variant of Typhimurium"
-  elif predict_form=="4:r:-":
-    predict_sero="potential monophasic variant of Heidelberg"
-  elif predict_form=="4:b:-":
-    predict_sero="potential monophasic variant of Paratyphi B"
-  elif predict_form=="8:e,h:1,2":
-    predict_sero="Newport"
-    star="*"
-    star_line="Serotype Bardo shares the same antigenic profile with Newport, but Bardo is exceedingly rare."
-  claim="The serotype(s) is/are the only serotype(s) with the indicated antigenic profile currently recognized in the Kauffmann White Scheme.  New serotypes can emerge and the possibility exists that this antigenic profile may emerge in a different subspecies.  Identification of strains to the subspecies level should accompany serotype determination; the same antigenic profile in different subspecies is considered different serotypes."##
-  if "N/A" in predict_sero:
-    claim=""
-  if "Typhimurium" in predict_sero or predict_form=="4:i:-":
-    normal=0
-    mutation=0
-    for x in special_gene_list:
-      if "oafA-O-4_full" in x:
-        normal = float(special_gene_list[x])
-      elif "oafA-O-4_5-" in x:
-        mutation = float(special_gene_list[x])
-    if normal>mutation:
-      #print "$$$Typhimurium"
-      pass
-    elif normal<mutation:
-      predict_sero=predict_sero.strip()+"(O5-)"
-      star="*"#
-      star_line="Detected the deletion of O5-."
-      #print "$$$Typhimurium_O5-"
-    else:
-      #print "$$$Typhimurium, even no 7 bases difference"
-      pass
-  return predict_form,predict_sero,star,star_line,claim
+            pass
+    return predict_form, predict_sero, star, star_line, claim
+
 
 def main():
     #todo clean up def main, write some functions
@@ -293,48 +403,43 @@ def main():
     input_file = args.input_file
     data_type = args.type
     output_mode = args.mode
-    #print(len(input_fasta_ks))
     ex_dir = os.path.dirname(os.path.realpath(__file__))
-    #print(ex_dir)
     try:
-        f = open(ex_dir +'/antigens.pickle', 'rb')
+        f = open(ex_dir + '/antigens.pickle', 'rb')
         lib_dict = pickle.load(f)
         f.close
     except FileNotFoundError:
-        lib_dict = multifasta_to_kmers_dict(ex_dir + '/H_and_O_and_specific_genes.fasta')
-        f = open(ex_dir +'/antigens.pickle', "wb")
+        lib_dict = multifasta_to_kmers_dict(
+            ex_dir + '/H_and_O_and_specific_genes.fasta')
+        f = open(ex_dir + '/antigens.pickle', "wb")
         pickle.dump(lib_dict, f)
         f.close()
-        #print('Created lib')
-    #kmers = [lib_dict[h] for h in lib_dict]
-    kmers=[]
+    kmers = []
     for h in lib_dict:
         kmers += lib_dict[h]
     if data_type == 'assembly':
-        input_Ks = set([k for k in createKmerDict_reads([multifasta_single_string(input_file)], 27)])
+        input_Ks = target_multifasta_kmerizer(input_file, 27, set(kmers))
     if data_type == 'fastq.gz':
         input_Ks = target_read_kmerizer(input_file, 27, set(kmers))
     if data_type == 'minion_2d_fasta':
         input_Ks = minion_fasta_kmerizer(input_file, 27, set(kmers))
     if data_type == 'minion_2d_fastq':
         input_Ks = minion_fastq_kmerizer(input_file, 27, set(kmers))
-    #print(len(input_Ks))
     #keep lists of O, H and special genes; both list of headers and
     O_dict = {}
     H_dict = {}
     Special_dict = {}
     for h in lib_dict:
-        score = (len(lib_dict[h] & input_Ks)/ len(lib_dict[h])) * 100
+        score = (len(lib_dict[h] & input_Ks) / len(lib_dict[h])) * 100
         if output_mode == 'debug':
             print(h, score)
-        if score > 1: # Arbitrary cut-off for similarity score very low but seems necessary to detect O-3,10 in some cases
+        if score > 1:  # Arbitrary cut-off for similarity score very low but seems necessary to detect O-3,10 in some cases
             if h.startswith('O') and score > 15:
                 O_dict[h] = score
             if h.startswith('fl') and score > 40:
                 H_dict[h] = score
             if (h[:2] != 'fl') and (h[0] != 'O'):
                 Special_dict[h] = score
-
     #call O:
     highest_O = '-'
     if len(O_dict) == 0:
@@ -343,10 +448,8 @@ def main():
         if 'O-9,46_wbaV__1002' in O_dict:  # not sure should use and float(O9_wbaV)/float(num_1) > 0.1
             if 'O-9,46_wzy__1191' in O_dict:  # and float(O946_wzy)/float(num_1) > 0.1
                 highest_O = "O-9,46"
-                # print "$$$Most possilble Otype:  O-9,46"
             elif "O-9,46,27_partial_wzy__1019" in O_dict:  # and float(O94627)/float(num_1) > 0.1
                 highest_O = "O-9,46,27"
-                # print "$$$Most possilble Otype:  O-9,46,27"
             else:
                 highest_O = "O-9"  # next, detect O9 vs O2?
                 O2 = 0
@@ -359,13 +462,12 @@ def main():
                 if O2 > O9:
                     highest_O = "O-2"
         elif ("O-3,10_wzx__1539" in O_dict) and (
-            "O-9,46_wzy__1191" in O_dict):  # and float(O310_wzx)/float(num_1) > 0.1 and float(O946_wzy)/float(num_1) > 0.1
+                "O-9,46_wzy__1191" in O_dict
+        ):  # and float(O310_wzx)/float(num_1) > 0.1 and float(O946_wzy)/float(num_1) > 0.1
             if "O-3,10_not_in_1,3,19__1519" in O_dict:  # and float(O310_no_1319)/float(num_1) > 0.1
                 highest_O = "O-3,10"
-                # print "$$$Most possilble Otype:  O-3,10 (contain O-3,10_not_in_1,3,19)"
             else:
                 highest_O = "O-1,3,19"
-                # print "$$$Most possilble Otype:  O-1,3,19 (not contain O-3,10_not_in_1,3,19)"
         ### end of special test for O9,46 and O3,10 family
         else:
             try:
@@ -374,7 +476,6 @@ def main():
                     if float(O_dict[x]) >= max_score:
                         max_score = float(O_dict[x])
                         highest_O = x.split("_")[0]
-                        #print('highest O:', highest_O)
                 if highest_O == "O-1,3,19":
                     highest_O = '-'
                     max_score = 0
@@ -408,9 +509,11 @@ def main():
                 highest_fljB_raw = s
                 highest_Score = float(H_dict[s])
     if output_mode == 'debug':
-        print(input_file+'\t'+highest_O.split('-')[1] +':'+ highest_fliC + ':' + highest_fljB)
-    result = seqsero_from_formula_to_serotypes(highest_O.split('-')[1],highest_fliC,highest_fljB,Special_dict)
-    print(input_file+'\t' + result[0] + '\t' +result[1])
+        print(input_file + '\t' + highest_O.split('-')[1] + ':' +
+              highest_fliC + ':' + highest_fljB)
+    result = seqsero_from_formula_to_serotypes(
+        highest_O.split('-')[1], highest_fliC, highest_fljB, Special_dict)
+    print(input_file + '\t' + result[0] + '\t' + result[1])
 
 
 if __name__ == '__main__':
